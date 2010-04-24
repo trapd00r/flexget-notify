@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+use strict;
+# flexget-notify - uses the Linux kernel inotify subsystem to follow
+# new releases without polling the file once every 2 sec
+# Copyright (C) 2010 Magnus Woldrich <trapd00r@trapd00r.se>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+########################################################################
+use Data::Dumper;
+use Linux::Inotify2;
+
+my $flexget = "$ENV{HOME}/.flexget.log";
+open(my $fh, '<', $flexget) or die "Cannot open $flexget for reading: $!";
+my @downloads = <$fh>;
+close($fh);
+
+my $inotify = Linux::Inotify2->new;
+$inotify->watch($flexget, IN_ALL_EVENTS) or die "Cant start watching $flexget: $!";
+
+sub anythingNew {
+  print "Following started watch on $flexget\n";
+  while(my @events = $inotify->read) {
+    unless(@events > 0) {
+      print "Read error: $!\n";
+      last;
+    }
+    foreach my $event(@events) {
+      if($event->mask eq 2) {
+        open(my $fh, '<', $flexget) or die "Cant open $flexget: $!";
+        my @newDownloads = <$fh>;
+        close $fh;
+        for(my $i=0;$i<@newDownloads;++$i) {
+          if($newDownloads[$i] ne $downloads[$i] or !$newDownloads[$i]) {
+            my @toExtract;
+            push(@toExtract, $newDownloads[$i]);
+            print extractNames(@toExtract);
+            @downloads = @newDownloads;
+          }
+        }
+      }
+    }
+  }
+}
+
+sub extractNames {
+  my @records = @_;
+  my @releases;
+  foreach my $record(@records) {
+    next unless($record =~ /Downloading:/);
+    $record =~ s/(?:\w+\s+){2}\w+:\s//;
+    push(@releases, $record);
+  }
+  return @releases;
+}
+
+anythingNew();
