@@ -19,6 +19,7 @@ use strict;
 ########################################################################
 use Data::Dumper;
 use Linux::Inotify2;
+use Flexget::PatternMatch qw(patternmatch);
 
 my $flexget = "$ENV{HOME}/.flexget.log";
 open(my $fh, '<', $flexget) or die "Cannot open $flexget for reading: $!";
@@ -44,7 +45,8 @@ sub anythingNew {
           if($newDownloads[$i] ne $downloads[$i] or !$newDownloads[$i]) {
             my @toExtract;
             push(@toExtract, $newDownloads[$i]);
-            print extractNames(@toExtract);
+            #print patternmatch(extractNames(@toExtract));
+            print "$_\n" for extractNames(@toExtract);
             @downloads = @newDownloads;
           }
         }
@@ -61,7 +63,7 @@ sub extractNames {
     $record =~ s/(?:\w+\s+){2}\w+:\s//;
     push(@releases, $record);
   }
-  return @releases;
+  return patternmatch(@releases);
 }
 
 anythingNew();
